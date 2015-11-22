@@ -1,0 +1,83 @@
+---
+title: "Practical Machine Learning Course Project"
+output: html_document
+---
+
+In this Practical Machine Learning Course Project, we aim to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict how well they perform barbell lifts.
+
+## Data
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+We first load the data
+```{r}
+train <- read.csv("pml-training.csv",na.strings = c("","NA","#DIV/0!"))
+test <- read.csv("pml-testing.csv",na.strings = c("","NA","#DIV/0!"))
+```
+The "classe" variable indicates the activity type and is the outcome vairable we would like to predict.
+```{r}
+table(train$classe)
+```
+We then split the train data into training set for model train and testing set for cross validation.
+```{r}
+library(caret)
+set.seed(1234)
+inTrain <- createDataPartition(train$classe, p=0.75, list = FALSE)
+training <- train[inTrain,]
+testing <- train[-inTrain,]
+```
+
+## Preprocessing
+In order to reduce dimensionality, we first remove variables with missing values, near-zero variables, and descriptive variables.
+```{r}
+# Remove vairables with missing values
+trainRM <- training[, which(as.numeric(colSums(is.na(training)))==0)]
+# Remove near-zero variables
+nzv <- nearZeroVar(trainRM)
+trainRM <- trainRM[, -nzv]
+# Remove descriptive variables
+trainRM <- trainRM[,-(1:7)]
+```
+
+## Model Train
+We use random forest as our model.
+```{r,cache=TRUE}
+library(randomForest)
+modelFit <- randomForest(classe ~ .,data = trainRM,importance=TRUE,ntrees = 10)
+```
+
+## Cross Validation
+We now test our model accuracy using the training set and out-of-sample errors through cross validation using testing set
+```{r,cache=TRUE}
+ptraining <- predict(modelFit, trainRM)
+print(confusionMatrix(ptraining, trainRM$classe))
+```
+This shows that our random forest model performs excellently with the training set. Let's then check the out-of-sample errors with the testing set.
+```{r,cache=TRUE}
+pvalidation <- predict(modelFit, testing)
+print(confusionMatrix(pvalidation, testing$classe))
+```
+Therefore, the cross validation accuracy is 99.53% and the out-of-sample error is thus 0.47%. Our model performs pretty well.
+
+## Final Test
+At the end, we predict the activity type using the provided test set.
+```{r,cache=TRUE}
+ptest <- predict(modelFit, test)
+ptest
+```
+We then use the provided R code to save the output to files according to instructions and post them to the submission page.
+```{r}
+answers <- as.vector(ptest)
+
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+pml_write_files(answers)
+```
